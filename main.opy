@@ -1,24 +1,61 @@
 globalvar CheckpointPositions
 globalvar Prime_Radius_VA
 globalvar LevelColors
+globalvar TimeRemaining 2
 
 playervar Active
 playervar CurrentLevel
 playervar CurrentCheckpoint
 playervar CurrentRings
+playervar TempIterator
+
+rule "Match time -- Written By Hax":
+    if getCurrentGamemode() == Gamemode.SKIRMISH:
+        goto lbl_0
+    wait(0.25)
+    setMatchTime(1)
+    wait(1.1)
+    setMatchTime(1)
+    wait(1.1)
+    lbl_0:
+    while true:
+        setMatchTime(3600)
+        wait(2875)
+        TimeRemaining += true
+        if TimeRemaining == 5:
+            TimeRemaining = 1800
+            hudHeader(getAllPlayers(), "  Server Restarts In {0} Min  ".format(ceil(TimeRemaining / 60)), HudPosition.RIGHT, -200, Color.RED, HudReeval.VISIBILITY_AND_STRING, SpecVisibility.ALWAYS)
+            chase(TimeRemaining, false, rate=true, ChaseReeval.NONE)
+            wait(1795)
+            bigMessage(getAllPlayers(), "Restarting")
+            wait(5)
+            if getCurrentGamemode() == Gamemode.FFA:
+                declarePlayerVictory(getPlayersInSlot(1, Team.ALL))
+            else:
+                declareTeamVictory(Team.1)
+            return
+
+
+
+
 
 rule "Initialize Gamemode":
     @Event global
-    CheckpointPositions = [vect(-6.028, 0.576, -79.737), vect(3.885, 6.500, -69.834)]
+    CheckpointPositions = [vect(-6.03, -0.92, -79.74), vect(3.885, 5.00, -69.834)]
     Prime_Radius_VA = [vect(11, 2, 0), vect(3, 2, 0)]
     LevelColors = [Color.GREEN, Color.SKY_BLUE]
 
 
 def abilityEnable():
+    eventPlayer.cancelPrimaryAction()
     eventPlayer.setAbility1Enabled(true)
     eventPlayer.setAbility2Enabled(true)
     eventPlayer.setPrimaryFireEnabled(true)
     eventPlayer.setSecondaryFireEnabled(true)
+    eventPlayer.setAbilityCooldown(Button.ABILITY_1, 0)
+    eventPlayer.setAbilityCooldown(Button.ABILITY_2, 0)
+    eventPlayer.setAbilityCooldown(Button.PRIMARY_FIRE, 0)
+    eventPlayer.setAbilityCooldown(Button.SECONDARY_FIRE, 0)
 
 def abilityDisable():
     eventPlayer.setAbility1Enabled(false)
@@ -65,6 +102,25 @@ rule "Floor is Lava":
         destroyRings()
         generateRings()
     else:
+        eventPlayer.setStatusEffect(null, Status.ROOTED, 0.300)
         eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint])
 
+    abilityDisable()
+    abilityEnable()
     eventPlayer.Active = false
+
+rule "Full Reset":
+    @Event eachPlayer
+    @Condition eventPlayer.isHoldingButton(Button.MELEE)
+    destroyRings()
+    eventPlayer.CurrentLevel = 0
+    eventPlayer.CurrentCheckpoint = 0
+    eventPlayer.Active = false
+    eventPlayer.teleport(CheckpointPositions[0])
+    generateRings()
+    abilityEnable()
+    
+
+rule "Ground HUD Vect":
+    @Event eachPlayer
+    hudSubtext(eventPlayer, "{}".format(nearestWalkablePosition(eventPlayer.getPosition())), HudPosition.LEFT, 0, Color.WHITE, HudReeval.STRING, SpecVisibility.ALWAYS) 
