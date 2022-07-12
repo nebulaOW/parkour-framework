@@ -74,6 +74,24 @@ def destroyRings():
     destroyEffect(eventPlayer.CurrentRings[0])
     destroyEffect(eventPlayer.CurrentRings[1])
 
+def checkpointEnd():
+    abilityDisable()
+    abilityEnable()
+    eventPlayer.Active = false
+
+def checkpointComplete():
+    eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1])
+    eventPlayer.CurrentCheckpoint += 1
+    # destroyRings()
+    # generateRings()
+    checkpointEnd()
+
+def checkpointFail():
+    eventPlayer.setStatusEffect(null, Status.ROOTED, 0.300)
+    eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint])
+    checkpointEnd()
+
+
 rule "Player Joins":
     @Event eachPlayer
     @Condition eventPlayer.hasSpawned()
@@ -94,20 +112,14 @@ rule "Floor is Lava":
     @Condition eventPlayer.Active == true
     @Condition eventPlayer.isOnGround()
 
-    if CheckpointPositions[eventPlayer.CurrentCheckpoint] % 3:
-        pass
+    if CheckpointPositions[eventPlayer.CurrentCheckpoint] % 3 == 0:
+        return
     elif distance(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1], eventPlayer.getPosition()) <= Prime_Radius_VA[eventPlayer.CurrentCheckpoint + 1].y:
-        eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1])
-        eventPlayer.CurrentCheckpoint += 1
-        destroyRings()
-        generateRings()
+        checkpointComplete()
     else:
-        eventPlayer.setStatusEffect(null, Status.ROOTED, 0.300)
-        eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint])
+        checkpointFail()
 
-    abilityDisable()
-    abilityEnable()
-    eventPlayer.Active = false
+    
 
 rule "Full Reset":
     @Event eachPlayer
