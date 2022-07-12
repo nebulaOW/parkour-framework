@@ -1,13 +1,18 @@
+#!define prettyTime(timeInSeconds) "{0}:{1}".format(floor(timeInSeconds / 60), "{0}{1}.{2}".format(floor(timeInSeconds % 60 / 10), floor(timeInSeconds % 60 - floor(timeInSeconds % 60 / 10) * 10), "{0}{1}".format("" if floor((timeInSeconds % 1) * 100) > 10 else "0", floor((timeInSeconds % 1) * 100))))
+
+
 globalvar CheckpointPositions
 globalvar Prime_Radius_VA
 globalvar LevelColors
 globalvar TimeRemaining 2
 
-playervar Active
+playervar CheckpointActive
+playervar LevelActive
 playervar CurrentLevel
 playervar CurrentCheckpoint
 playervar CurrentRings
 playervar TempIterator
+playervar RunTimer
 
 rule "Match time -- Written By Hax":
     if getCurrentGamemode() == Gamemode.SKIRMISH:
@@ -41,8 +46,8 @@ rule "Match time -- Written By Hax":
 
 rule "Initialize Gamemode":
     @Event global
-    CheckpointPositions = [vect(-6.03, -0.92, -79.74), vect(3.885, 5.00, -69.834)]
-    Prime_Radius_VA = [vect(11, 2, 0), vect(3, 2, 0)]
+    CheckpointPositions = [vect(-6.03, -0.92, -79.74), vect(3.885, 5.00, -69.834), vect(-6.03, -0.92, -79.74)]
+    Prime_Radius_VA = [vect(11, 2, 0), vect(2, 2, 0), vect(3, 2, 0)]
     LevelColors = [Color.GREEN, Color.SKY_BLUE]
 
 
@@ -77,7 +82,7 @@ def destroyRings():
 def checkpointEnd():
     abilityDisable()
     abilityEnable()
-    eventPlayer.Active = false
+    eventPlayer.CheckpointActive = false
 
 def checkpointComplete():
     eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1])
@@ -85,36 +90,58 @@ def checkpointComplete():
     # destroyRings()
     # generateRings()
     checkpointEnd()
+    if Prime_Radius_VA[eventPlayer.CurrentCheckpoint].x % 3 == 0:
+        stopChasingVariable(eventPlayer.RunTimer)
+        eventPlayer.LevelActive = false
+        wait()
+        bigMessage(eventPlayer, "{}".format(eventPlayer.RunTimer))
+        
 
 def checkpointFail():
     eventPlayer.setStatusEffect(null, Status.ROOTED, 0.300)
     eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint])
     checkpointEnd()
-
+    if Prime_Radius_VA[eventPlayer.CurrentCheckpoint].x % 11 == 0:
+        stopChasingVariable(eventPlayer.RunTimer)
+        eventPlayer.LevelActive = false
+        eventPlayer.RunTimer = 0
+        
 
 rule "Player Joins":
     @Event eachPlayer
     @Condition eventPlayer.hasSpawned()
+    eventPlayer.disableGamemodeHud()
     eventPlayer.CurrentLevel = 0
     eventPlayer.CurrentCheckpoint = 0
-    eventPlayer.Active = false
+    eventPlayer.CheckpointActive = false
     eventPlayer.teleport(CheckpointPositions[0])
     generateRings()
+    eventPlayer.RunTimer = 0
 
 
-rule "Start Run":
+rule "Start Level":
     @Event eachPlayer
+    @Condition Prime_Radius_VA[eventPlayer.CurrentCheckpoint].x % 11 == 0
     @Condition distance(CheckpointPositions[eventPlayer.CurrentCheckpoint], eventPlayer.getPosition()) > Prime_Radius_VA[eventPlayer.CurrentCheckpoint].y
-    eventPlayer.Active = true
+    eventPlayer.LevelActive = true
+    eventPlayer.CheckpointActive = true
+    chase(eventPlayer.RunTimer, 100000, rate=true, ChaseReeval.NONE)
+
+
+rule "Start Checkpoint":
+    @Event eachPlayer
+    @Condition eventPlayer.CurrentCheckpoint != 0
+    @Condition eventPlayer.LevelActive == true
+    @Condition distance(CheckpointPositions[eventPlayer.CurrentCheckpoint], eventPlayer.getPosition()) > Prime_Radius_VA[eventPlayer.CurrentCheckpoint].y
+    eventPlayer.CheckpointActive = true
 
 rule "Floor is Lava":
     @Event eachPlayer
-    @Condition eventPlayer.Active == true
+    @Condition eventPlayer.CheckpointActive == true
+    @Condition eventPlayer.LevelActive == true
     @Condition eventPlayer.isOnGround()
 
-    if CheckpointPositions[eventPlayer.CurrentCheckpoint] % 3 == 0:
-        return
-    elif distance(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1], eventPlayer.getPosition()) <= Prime_Radius_VA[eventPlayer.CurrentCheckpoint + 1].y:
+    if distance(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1], eventPlayer.getPosition()) <= Prime_Radius_VA[eventPlayer.CurrentCheckpoint + 1].y:
         checkpointComplete()
     else:
         checkpointFail()
@@ -127,7 +154,8 @@ rule "Full Reset":
     destroyRings()
     eventPlayer.CurrentLevel = 0
     eventPlayer.CurrentCheckpoint = 0
-    eventPlayer.Active = false
+    eventPlayer.RunTimer = 0
+    eventPlayer.CheckpointActive = false
     eventPlayer.teleport(CheckpointPositions[0])
     generateRings()
     abilityEnable()
@@ -136,3 +164,9 @@ rule "Full Reset":
 rule "Ground HUD Vect":
     @Event eachPlayer
     hudSubtext(eventPlayer, "{}".format(nearestWalkablePosition(eventPlayer.getPosition())), HudPosition.LEFT, 0, Color.WHITE, HudReeval.STRING, SpecVisibility.ALWAYS) 
+
+
+rule "Progress HUD":
+    @Event global
+    hudSubtext(localPlayer, prettyTime(localPlayer.RunTimer), HudPosition.TOP, 0, Color.WHITE, HudReeval.VISIBILITY_AND_STRING, SpecVisibility.ALWAYS)
+    hudSubtext(localPlayer, "{} / {}".format(localPlayer.CurrentCheckpoint + 1, len(CheckpointPositions)), HudPosition.TOP, 1, Color.WHITE, HudReeval.VISIBILITY_AND_STRING, SpecVisibility.ALWAYS)
