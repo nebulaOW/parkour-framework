@@ -1,4 +1,4 @@
-#!define prettyTime(timeInSeconds) "{0}:{1}".format(floor(timeInSeconds / 60), "{0}{1}.{2}".format(floor(timeInSeconds % 60 / 10), floor(timeInSeconds % 60 - floor(timeInSeconds % 60 / 10) * 10), "{0}{1}".format("" if floor((timeInSeconds % 1) * 100) > 10 else "0", floor((timeInSeconds % 1) * 100))))
+#!define prettyTime(timeInSeconds) "{0}:{1}".format(floor(timeInSeconds / 60), "{0}{1}.{2}".format(floor(timeInSeconds % 60 / 10), floor(timeInSeconds % 60 - floor(timeInSeconds % 60 / 10) * 10), "{0}{1}".format("" if floor((timeInSeconds % 1) * 100) >= 10 else "0", floor((timeInSeconds % 1) * 100))))
 
 
 globalvar CheckpointPositions
@@ -85,6 +85,7 @@ def checkpointEnd():
     eventPlayer.CheckpointActive = false
 
 def checkpointComplete():
+    eventPlayer.cancelPrimaryAction()
     eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint + 1])
     eventPlayer.CurrentCheckpoint += 1
     # destroyRings()
@@ -98,7 +99,8 @@ def checkpointComplete():
         
 
 def checkpointFail():
-    eventPlayer.setStatusEffect(null, Status.ROOTED, 0.300)
+    eventPlayer.cancelPrimaryAction()
+    #eventPlayer.setStatusEffect(null, Status.ROOTED, 0.300)
     eventPlayer.teleport(CheckpointPositions[eventPlayer.CurrentCheckpoint])
     checkpointEnd()
     if Prime_Radius_VA[eventPlayer.CurrentCheckpoint].x % 11 == 0:
@@ -146,18 +148,26 @@ rule "Floor is Lava":
     else:
         checkpointFail()
 
-    
+rule "Quick Reset":
+    @Event eachPlayer
+    @Condition eventPlayer.isHoldingButton(Button.RELOAD)
+    checkpointFail()
+
 
 rule "Full Reset":
     @Event eachPlayer
-    @Condition eventPlayer.isHoldingButton(Button.MELEE)
-    destroyRings()
+    @Condition eventPlayer.isHoldingButton(Button.INTERACT)
+    @Condition eventPlayer.isHoldingButton(Button.ULTIMATE)
+    #destroyRings()
+    stopChasingVariable(eventPlayer.RunTimer)
+    eventPlayer.cancelPrimaryAction()
     eventPlayer.CurrentLevel = 0
     eventPlayer.CurrentCheckpoint = 0
     eventPlayer.RunTimer = 0
     eventPlayer.CheckpointActive = false
+    eventPlayer.LevelActive = false
     eventPlayer.teleport(CheckpointPositions[0])
-    generateRings()
+    #generateRings()
     abilityEnable()
     
 
